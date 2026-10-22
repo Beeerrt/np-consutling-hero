@@ -1,7 +1,7 @@
 import * as THREE from 'three'
+import { mobileLayout, reducedMotion } from '../ui/preferences'
 
 const REVEAL_MS = 1900
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export interface DesignBox {
   /** Sichtbarer Weltbereich, für den die Szene komponiert ist */
@@ -22,6 +22,7 @@ export abstract class CardScene {
   protected camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400)
   protected root = new THREE.Group()
   protected target = new THREE.Vector3()
+  protected mobileTarget?: THREE.Vector3
   protected billboards: THREE.Object3D[] = []
   protected disposables: { dispose(): void }[] = []
 
@@ -34,7 +35,6 @@ export abstract class CardScene {
   private py = 0
   private rendered = false
   private ro: ResizeObserver
-  private io: IntersectionObserver
 
   constructor(
     protected canvas: HTMLCanvasElement,
@@ -47,14 +47,8 @@ export abstract class CardScene {
 
     this.ro = new ResizeObserver(() => this.resize())
     this.ro.observe(canvas)
-    this.io = new IntersectionObserver(
-      ([e]) => {
-        this.visible = e.isIntersecting
-        if (this.visible && this.revealStart < 0) this.revealStart = performance.now()
-      },
-      { threshold: 0.25 },
-    )
-    this.io.observe(canvas)
+    reducedMotion.addEventListener('change', this.invalidate)
+    mobileLayout.addEventListener('change', this.onLayout)
     this.resize()
   }
 
@@ -65,23 +59,38 @@ export abstract class CardScene {
     const w = this.canvas.clientWidth
     const h = this.canvas.clientHeight
     if (!w || !h) return
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLayout.matches ? 1.5 : 2))
     this.renderer.setSize(w, h, false)
     this.aspect = w / h
-    const H = Math.max(this.design.h, (this.design.w * 0.62) / this.aspect)
+    const fitWidth = this.design.w * (mobileLayout.matches ? 1 : 0.62)
+    const H = Math.max(this.design.h, fitWidth / this.aspect) * (mobileLayout.matches ? 1.12 : 1)
     const W = H * this.aspect
     this.camera.left = -W / 2
     this.camera.right = W / 2
     this.camera.top = H / 2
     this.camera.bottom = -H / 2
     this.camera.updateProjectionMatrix()
+    this.invalidate()
+  }
+
+  private onLayout = () => this.resize()
+
+  private invalidate = () => {
     this.rendered = false
+    this.canvas.dispatchEvent(new Event('sceneinvalidate'))
+  }
+
+  get needsRender() {
+    return this.visible && (!reducedMotion.matches || !this.rendered)
   }
 
   tick(dt: number, pointer: { x: number; y: number } | null) {
-    if (reduceMotion) {
+    if (this.revealStart < 0) this.revealStart = performance.now()
+    if (reducedMotion.matches) {
       if (this.rendered) return
       this.reveal = 1
+      this.time = 0
+      this.px = this.py = 0
       dt = 0
     }
 
@@ -92,7 +101,7 @@ export abstract class CardScene {
 
     let nx = 0
     let ny = 0
-    if (pointer && !reduceMotion) {
+    if (pointer && !reducedMotion.matches) {
       const r = this.canvas.getBoundingClientRect()
       const x = ((pointer.x - r.left) / r.width) * 2 - 1
       const y = ((pointer.y - r.top) / r.height) * 2 - 1
@@ -109,11 +118,12 @@ export abstract class CardScene {
     for (const b of this.billboards) b.quaternion.copy(this.camera.quaternion)
     this.update(this.time, easeInOut(this.reveal))
     this.renderer.render(this.scene, this.camera)
+    this.canvas.dataset.rendered = ''
     this.rendered = true
   }
 
   private placeCamera() {
-    const t = this.target
+    const t = mobileLayout.matches && this.mobileTarget ? this.mobileTarget : this.target
     if (this.iso) {
       const az = Math.PI / 4 + this.px * 0.07
       const el = Math.atan(1 / Math.SQRT2) - this.py * 0.04
@@ -132,7 +142,8 @@ export abstract class CardScene {
 
   dispose() {
     this.ro.disconnect()
-    this.io.disconnect()
+    reducedMotion.removeEventListener('change', this.invalidate)
+    mobileLayout.removeEventListener('change', this.onLayout)
     this.disposables.forEach((d) => d.dispose())
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh

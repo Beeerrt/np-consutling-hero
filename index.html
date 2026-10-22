@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
       content="NP Consulting plant Druckluft-, Kühlwasser- und Vakuumleitungen für Industriebetriebe auf Basis eines 3D-Laserscans."
@@ -28,9 +28,33 @@
           <a href="#ueber-uns">Über uns</a>
           <a href="#fragen">Fragen</a>
         </nav>
-        <a class="btn btn-light btn-sm" href="#kontakt">Projekt anfragen</a>
+        <a class="btn btn-light btn-sm nav-request" href="#kontakt">Projekt anfragen</a>
+        <button class="menu-toggle" type="button" aria-label="Menü öffnen" aria-controls="mobile-menu" aria-expanded="false" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
       </div>
     </header>
+
+    <dialog class="mobile-menu" id="mobile-menu" aria-labelledby="menu-title">
+      <div class="menu-head">
+        <h2 id="menu-title">Navigation</h2>
+        <button class="menu-close" type="button" aria-label="Menü schließen" autofocus>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="m6 6 12 12M6 18 18 6" />
+          </svg>
+        </button>
+      </div>
+      <nav aria-label="Mobile Hauptnavigation">
+        <a href="#leistungen">Leistungen</a>
+        <a href="#medien">Medien</a>
+        <a href="#ablauf">Ablauf</a>
+        <a href="#ueber-uns">Über uns</a>
+        <a href="#fragen">Fragen</a>
+        <a class="btn btn-light" href="#kontakt">Projekt anfragen</a>
+      </nav>
+    </dialog>
 
     <main id="top">
       <section class="hero-scroll" id="hero">
@@ -38,7 +62,7 @@
           <div class="hero-shade" aria-hidden="true"></div>
 
           <div class="hero-content">
-            <h1>Rohrleitungsplanung<br />mit 3D-Laserscan</h1>
+            <h1><span class="hero-title-line">Rohrleitungsplanung</span> <span class="hero-title-line">mit 3D-Laserscan</span></h1>
             <p class="hero-sub">
               Druckluft-, Kühlwasser- und Vakuumleitungen für Industriebetriebe. 3D-Laserscans auf Basis ihres Bestands.
             </p>
@@ -65,7 +89,7 @@
         <div class="services-head">
           <div>
             <!-- <p class="eyebrow">Leistungen</p> -->
-            <h2>Von der Bestandsaufnahme<br />bis zur Ausführungsplanung</h2>
+            <h2>Von der Bestandsaufnahme <br />bis zur Ausführungsplanung</h2>
           </div>
           <!-- <ul class="legend" aria-label="Medien">
             <li><i style="--c: #4d94ff"></i>Druckluft</li>

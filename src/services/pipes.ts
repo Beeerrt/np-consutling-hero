@@ -18,6 +18,7 @@ const vertexShader = /* glsl */ `
 // optional Schraffur entlang des Rohrs und eine innere Konturlinie.
 const fragmentShader = /* glsl */ `
   uniform vec3 uColor;
+  uniform vec3 uPaper;
   uniform float uReveal;
   uniform float uLen;
   uniform float uR;
@@ -56,7 +57,7 @@ const fragmentShader = /* glsl */ `
     }
 
     float strength = clamp(max(edge, max(hat * 0.4, inner * 0.4)), 0.0, 1.0);
-    vec3 col = mix(uColor * 0.18, uColor, strength);
+    vec3 col = mix(uPaper, uColor, strength);
     gl_FragColor = vec4(col, mix(uFill, 1.0, strength));
     #include <colorspace_fragment>
   }
@@ -74,6 +75,8 @@ export interface PipeOptions {
   /** Kontur-Schwelle (kleiner = dickere Kontur) */
   edge?: number
   fill?: number
+  /** Papierfarbe der Karte (Füllung des Rohrs) */
+  paper?: string
   corner?: number
 }
 
@@ -107,6 +110,7 @@ export class Pipe {
     const path = roundedPath(points, o.corner ?? r * 2.4)
     const len = path.getLength()
     const color = new THREE.Color(o.color)
+    const paper = new THREE.Color(o.paper ?? '#ebeae5')
 
     const make = (cap: boolean, capAt: number, capC: THREE.Vector3, capD: THREE.Vector3) =>
       new THREE.ShaderMaterial({
@@ -116,6 +120,7 @@ export class Pipe {
         depthWrite: false,
         uniforms: {
           uColor: { value: color },
+          uPaper: { value: paper },
           uReveal: { value: 0 },
           uLen: { value: len },
           uR: { value: r },

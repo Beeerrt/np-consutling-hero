@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { buildCloud, buildPipeMeshes, type PipeMeshes } from './geometry'
 import { fragmentShader, vertexShader } from './shaders'
+import { finePointer, mobileLayout, reducedMotion, staticHero } from '../ui/preferences'
 
 const FOV = 35
 const HALL_HALF_WIDTH = 8.6
@@ -23,19 +24,20 @@ export class PointCloudScene {
   private mouseSmooth = new THREE.Vector2()
   private raf = 0
   private visible = true
-  private reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  private mobile = mobileLayout.matches
+  private rendered = false
+  private observed = new Map<Element, boolean>()
   private resizeObserver: ResizeObserver
   private intersection: IntersectionObserver
   private pmrem: THREE.PMREMGenerator
   private envTexture: THREE.Texture
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(private canvas: HTMLCanvasElement, visibilityTargets: HTMLElement[]) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true })
     this.renderer.setClearColor(0x000000, 0)
     this.renderer.localClippingEnabled = true
 
-    const mobile = innerWidth < 820
-    const { geometry } = buildCloud(mobile ? 60000 : 180000)
+    const { geometry } = buildCloud(this.mobile ? 60000 : 180000)
 
     this.material = new THREE.ShaderMaterial({
       vertexShader,
@@ -47,7 +49,7 @@ export class PointCloudScene {
         uProgress: { value: 0 },
         uPixelRatio: { value: 1 },
         uSize: { value: 2.6 },
-        uIdle: { value: this.reduceMotion ? 0 : 1 },
+        uIdle: { value: staticHero() ? 0 : 1 },
       },
     })
     this.points = new THREE.Points(geometry, this.material)
@@ -60,7 +62,9 @@ export class PointCloudScene {
     this.scene.add(this.pipes.group)
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer)
-    this.envTexture = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    const environment = new RoomEnvironment()
+    this.envTexture = this.pmrem.fromScene(environment, 0.04).texture
+    environment.dispose()
     this.scene.environment = this.envTexture
     this.scene.environmentIntensity = 0.7
 
@@ -72,49 +76,78 @@ export class PointCloudScene {
 
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(canvas)
-    this.intersection = new IntersectionObserver(([e]) => (this.visible = e.isIntersecting))
-    this.intersection.observe(canvas)
+    this.intersection = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => this.observed.set(entry.target, entry.isIntersecting))
+      this.visible = [...this.observed.values()].some(Boolean)
+      this.syncLoop()
+    })
+    visibilityTargets.forEach((target) => this.intersection.observe(target))
 
-    addEventListener('pointermove', this.onPointer, { passive: true })
-    document.addEventListener('visibilitychange', this.onVisibility)
+    finePointer.addEventListener('change', this.onPreferences)
+    reducedMotion.addEventListener('change', this.onPreferences)
+    mobileLayout.addEventListener('change', this.onPreferences)
+    addEventListener('herolayoutchange', this.onPreferences)
+    document.addEventListener('visibilitychange', this.syncLoop)
 
     this.resize()
-    this.renderFrame(0)
-    this.loop()
+    this.onPreferences()
   }
 
   private onPointer = (e: PointerEvent) => {
     this.mouse.set((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1)
   }
 
-  private onVisibility = () => {
-    if (document.hidden) cancelAnimationFrame(this.raf)
-    else this.loop()
+  private onPreferences = () => {
+    removeEventListener('pointermove', this.onPointer)
+    if (finePointer.matches && !staticHero()) addEventListener('pointermove', this.onPointer, { passive: true })
+    else {
+      this.mouse.set(0, 0)
+      this.mouseSmooth.set(0, 0)
+    }
+    if (this.mobile !== mobileLayout.matches) {
+      this.mobile = mobileLayout.matches
+      this.points.geometry.dispose()
+      this.points.geometry = buildCloud(this.mobile ? 60000 : 180000).geometry
+    }
+    this.material.uniforms.uIdle.value = staticHero() ? 0 : 1
+    this.resize()
+  }
+
+  private syncLoop = () => {
+    cancelAnimationFrame(this.raf)
+    this.raf = 0
+    if (document.hidden || !this.visible || (staticHero() && this.rendered)) return
+    this.clock.getDelta()
+    this.raf = requestAnimationFrame(this.loop)
   }
 
   private resize() {
     const w = this.canvas.clientWidth
     const h = this.canvas.clientHeight
     if (!w || !h) return
-    const dpr = Math.min(devicePixelRatio, 2)
+    const dpr = Math.min(devicePixelRatio, this.mobile ? 1.5 : 2)
     this.renderer.setPixelRatio(dpr)
     this.renderer.setSize(w, h, false)
     this.material.uniforms.uPixelRatio.value = dpr * (h / 900)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
+    this.rendered = false
+    this.syncLoop()
   }
 
   private loop = () => {
-    this.raf = requestAnimationFrame(this.loop)
-    if (!this.visible) return
-    this.renderFrame(this.clock.getDelta())
+    this.raf = 0
+    if (document.hidden || !this.visible) return
+    this.renderFrame(Math.min(this.clock.getDelta(), 0.1))
+    this.rendered = true
+    if (!staticHero()) this.raf = requestAnimationFrame(this.loop)
   }
 
   private renderFrame(dt: number) {
     const u = this.material.uniforms
-    const t = this.clock.elapsedTime
+    const t = staticHero() ? 0 : this.clock.elapsedTime
     this.smooth += (this.progress - this.smooth) * Math.min(1, dt * 6 + 0.001)
-    const p = this.smooth
+    const p = staticHero() ? 1 : this.smooth
     u.uTime.value = t
     u.uProgress.value = p
 
@@ -143,7 +176,11 @@ export class PointCloudScene {
   dispose() {
     cancelAnimationFrame(this.raf)
     removeEventListener('pointermove', this.onPointer)
-    document.removeEventListener('visibilitychange', this.onVisibility)
+    document.removeEventListener('visibilitychange', this.syncLoop)
+    finePointer.removeEventListener('change', this.onPreferences)
+    reducedMotion.removeEventListener('change', this.onPreferences)
+    mobileLayout.removeEventListener('change', this.onPreferences)
+    removeEventListener('herolayoutchange', this.onPreferences)
     this.resizeObserver.disconnect()
     this.intersection.disconnect()
     this.points.geometry.dispose()

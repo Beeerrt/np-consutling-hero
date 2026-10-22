@@ -8,13 +8,16 @@ export interface GridOptions {
   alpha?: number
   /** 0 = gleichmäßig, 1 = zum Rand hin ausgeblendet */
   falloff?: number
+  /** Linienfarbe als RGB 0..1 */
+  color?: [number, number, number]
 }
 
 /** Raster in der XZ-Ebene; in isometrischer Ansicht ergibt das die typische Rautenstruktur. */
 export function floorGrid(o: GridOptions) {
   const { half, step } = o
   const y = o.y ?? 0
-  const alpha = o.alpha ?? 0.08
+  const alpha = o.alpha ?? 0.12
+  const [cr, cg, cb] = o.color ?? [0.1, 0.1, 0.12]
   const falloff = o.falloff ?? 0.6
   const pieces = 32
   const pos: number[] = []
@@ -31,7 +34,7 @@ export function floorGrid(o: GridOptions) {
       const bx = x1 + (x2 - x1) * b
       const bz = z1 + (z2 - z1) * b
       pos.push(ax, y, az, bx, y, bz)
-      col.push(1, 1, 1, alpha * fade(ax, az), 1, 1, 1, alpha * fade(bx, bz))
+      col.push(cr, cg, cb, alpha * fade(ax, az), cr, cg, cb, alpha * fade(bx, bz))
     }
   }
 
