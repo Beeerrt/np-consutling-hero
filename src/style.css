@@ -333,7 +333,7 @@ a {
 
 .services h2 {
   margin: 0;
-  font-size: clamp(2.1rem, 3.65vw, 4.4rem);
+  font-size: clamp(2.1rem, 6.65vw, 5.4rem);
   line-height: 1.02;
   letter-spacing: 0.01em;
 }
